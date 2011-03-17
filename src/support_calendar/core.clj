@@ -10,7 +10,8 @@
           [net.fortuna.ical4j.util UidGenerator]
           [jcifs.smb NtlmPasswordAuthentication SmbFile]
           [org.apache.poi.hssf.usermodel HSSFWorkbook]
-          [java.io ByteArrayInputStream ByteArrayOutputStream]))
+          [java.io ByteArrayInputStream ByteArrayOutputStream]
+          [java.util TimeZone]))
 
 (defn find-column [sheet heading]
   "sheet string -> int"
@@ -73,6 +74,8 @@
             (map (fn [index] (.getSheetAt workbook index))
                  (range (.getNumberOfSheets workbook))))))
 
+(def utc (TimeZone/getTimeZone "utc"))
+
 (defn generate-calendar [stream data]
   (let [date (fn [[y m d]]
                (let [calendar (java.util.Calendar/getInstance)]
@@ -91,7 +94,7 @@
       (.add CalScale/GREGORIAN))
     (doseq [[name [start end]] data]
       (let [start-date (let [[y m d] start
-                             calendar (java.util.Calendar/getInstance)]
+                             calendar (java.util.Calendar/getInstance utc)]
                          (doto calendar
                            (.set java.util.Calendar/YEAR y)
                            (.set java.util.Calendar/MONTH ({"jan" 0, "feb" 1, "mar" 2, "apr" 3
@@ -100,7 +103,7 @@
                            (.set java.util.Calendar/DAY_OF_MONTH d))
                          (new Date (.getTime calendar)))
             end-date (let [[y m d] end
-                           calendar (java.util.Calendar/getInstance)]
+                           calendar (java.util.Calendar/getInstance utc)]
                        (doto calendar
                          (.set java.util.Calendar/YEAR y)
                          (.set java.util.Calendar/MONTH ({"jan" 0, "feb" 1, "mar" 2, "apr" 3

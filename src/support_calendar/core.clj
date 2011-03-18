@@ -169,8 +169,6 @@
        :body (render-calendar system)}))
   (route/not-found "Calendar not found."))
 
-(def application-routes #'routes)
-
 (defn start-server []
   (let [get-workbook (fn [& old-workbook]
                        (->> (new SmbFile roster-path)
@@ -179,6 +177,6 @@
         worksheet-updater (fn []
                             (swap! workbook get-workbook))]
     (worksheet-updater)
-    [(jetty/run-jetty application-routes {:port 8080 :join? false})
+    [(jetty/run-jetty #'routes {:port 8080 :join? false})
      (doto (Executors/newSingleThreadScheduledExecutor)
        (.scheduleAtFixedRate worksheet-updater 5 5 TimeUnit/SECONDS))]))

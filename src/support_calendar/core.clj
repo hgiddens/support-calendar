@@ -13,7 +13,10 @@
           [jcifs.smb NtlmPasswordAuthentication SmbFile]
           [org.apache.poi.hssf.usermodel HSSFWorkbook]
           [java.io ByteArrayInputStream ByteArrayOutputStream]
-          [java.util TimeZone]))
+          [java.util TimeZone]
+          [java.util.concurrent Executors TimeUnit]))
+
+(def workbook (atom nil))
 
 (defn find-column [sheet heading]
   "sheet string -> int"
@@ -127,9 +130,7 @@
 (def roster-path "smb://flroa01/shared/general/intranet/shared-documents/support roster.xls")
 
 (defn render-calendar [system]
-  (let [input (.getInputStream (new SmbFile roster-path))
-        workbook (new HSSFWorkbook input)
-        data (->> workbook
+  (let [data (->> @workbook
                   (roster-sheets)
                   (mapcat #(process-sheet % (find-column % system)))
                   (collapse-days))
@@ -171,4 +172,13 @@
 (def application-routes #'routes)
 
 (defn start-server []
-  (jetty/run-jetty application-routes {:port 8080 :join? false}))
+  (let [get-workbook (fn [& old-workbook]
+                       (->> (new SmbFile roster-path)
+                            (.getInputStream)
+                            (new HSSFWorkbook)))
+        worksheet-updater (fn []
+                            (swap! workbook get-workbook))]
+    (worksheet-updater)
+    [(jetty/run-jetty application-routes {:port 8080 :join? false})
+     (doto (Executors/newSingleThreadScheduledExecutor)
+       (.scheduleAtFixedRate worksheet-updater 5 5 TimeUnit/SECONDS))]))

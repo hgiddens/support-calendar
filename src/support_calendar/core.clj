@@ -2,7 +2,9 @@
   (require [clojure.string :as string]
            [compojure.core :as compojure]
            [compojure.route :as route]
-           [ring.adapter.jetty :as jetty])
+           [ring.adapter.jetty :as jetty]
+           [ring.util.codec :as codec]
+           [hiccup :as html])
   (import [net.fortuna.ical4j.data CalendarOutputter]
           [net.fortuna.ical4j.model Calendar Date]
           [net.fortuna.ical4j.model.component VEvent]
@@ -16,10 +18,10 @@
 (defn find-column [sheet heading]
   "sheet string -> int"
   (let [row (.getRow sheet 1)]
-    (loop [column 0]
+    (loop [column 1]
       (condp = (-> row (.getCell column) (.getStringCellValue))
           heading column
-          "" nil
+          "Date" nil
           (recur (inc column))))))
 
 (defn days-in-month [month year]
@@ -48,16 +50,20 @@
     (assert (contains? #{"jan" "feb" "mar" "apr" "may" "jun" "jul" "aug" "sep" "oct" "nov" "dec"} month))
     [month year]))
 
+(defn column-people [sheet column]
+  (for [row (map #(+ % 2) (range (apply days-in-month (sheet-date sheet))))]
+    (-> sheet (.getRow row) (.getCell column) (.getStringCellValue))))
+
 (defn process-sheet
   "sheet -> [[start end person] ...]"
-  [sheet]
-  (let [col (find-column sheet "IP Terms")
-        [month year] (sheet-date sheet)]
-    (for [index (range (days-in-month month year))
-          :let [row (.getRow sheet (+ index 2))
-                name (.getStringCellValue (.getCell row col))]
-          :when (not (string/blank? name))]
-      [name [year month (.getDate (.getDateCellValue (.getCell row 0)))]])))
+  [sheet column]
+  (let [[month year] (sheet-date sheet)]
+    (filter (complement nil?)
+            (map (fn [name day]
+                   (when-not (string/blank? name)
+                     [name [year month day]]))
+                 (column-people sheet column)
+                 (range 1 32)))))
 
 (defn collapse-days [days]
   (map (fn [persons-days]
@@ -120,21 +126,46 @@
 
 (def roster-path "smb://flroa01/shared/general/intranet/shared-documents/support roster.xls")
 
-(defn render-calendar []
+(defn render-calendar [system]
   (let [input (.getInputStream (new SmbFile roster-path))
         workbook (new HSSFWorkbook input)
         data (->> workbook
                   (roster-sheets)
-                  (mapcat process-sheet)
+                  (mapcat #(process-sheet % (find-column % system)))
                   (collapse-days))
         output (new ByteArrayOutputStream)]
     (generate-calendar output data)
     (new ByteArrayInputStream (.toByteArray output))))
 
+(def systems (sorted-set
+              "Internet"
+              "Jetbet/JESI"
+              "IP Terms"
+              "OFC"
+              "JEQI"
+              "Touchtone"
+              "IPC"
+              "Network"
+              "IS"
+              "DBA"))
+
 (compojure/defroutes routes
-  (compojure/GET "/" [] {:status 200
-                         :headers {"Content-Type" "text/calendar"}
-                         :body (render-calendar)})
+  (compojure/GET "/systems/" request
+    (html/html
+     [:html
+      [:head [:title "Calendars"]]
+      [:body
+       [:ul (for [system systems]
+              [:li
+               [:a {:href (str "webcal://"
+                               (request :server-name) ":" (request :server-port)
+                               "/systems/" (codec/url-encode system))}
+                system]])]]]))
+  (compojure/GET "/systems/:system" [system]
+    (when (contains? systems system)
+      {:status 200
+       :headers {"Content-Type" "text/calendar"}
+       :body (render-calendar system)}))
   (route/not-found "Calendar not found."))
 
 (def application-routes #'routes)

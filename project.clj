@@ -7,5 +7,6 @@
                  ;; ical4j
                  ;; compojure
                  ;; ring-jetty-adapter
+                 ;; hiccup
                  ]
   :dev-dependencies [[swank-clojure "1.2.1"]])

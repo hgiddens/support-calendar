@@ -137,7 +137,7 @@
                          :body (render-calendar)})
   (route/not-found "Calendar not found."))
 
-(def application-routes routes)
+(def application-routes #'routes)
 
 (defn start-server []
   (jetty/run-jetty application-routes {:port 8080 :join? false}))

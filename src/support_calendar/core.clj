@@ -1,22 +1,10 @@
 (ns support-calendar.core
-  (require [clojure.string :as string]
-           [compojure.core :as compojure]
-           [compojure.route :as route]
-           [ring.adapter.jetty :as jetty]
-           [ring.util.codec :as codec]
-           [hiccup :as html])
-  (import [net.fortuna.ical4j.data CalendarOutputter]
-          [net.fortuna.ical4j.model Calendar Date]
+  (import [java.util Calendar TimeZone]
+          [net.fortuna.ical4j.model Date]
           [net.fortuna.ical4j.model.component VEvent]
           [net.fortuna.ical4j.model.property CalScale ProdId Version]
-          [net.fortuna.ical4j.util UidGenerator]
-          [jcifs.smb NtlmPasswordAuthentication SmbFile]
-          [org.apache.poi.hssf.usermodel HSSFWorkbook]
-          [java.io ByteArrayInputStream ByteArrayOutputStream]
-          [java.util TimeZone]
-          [java.util.concurrent Executors TimeUnit]))
-
-(def workbook (atom nil))
+          [net.fortuna.ical4j.util UidGenerator])
+  (require [clojure.string :as string]))
 
 (defn find-column [sheet heading]
   "sheet string -> int"
@@ -85,17 +73,8 @@
 
 (def utc (TimeZone/getTimeZone "utc"))
 
-(defn generate-calendar [stream data]
-  (let [date (fn [[y m d]]
-               (let [calendar (java.util.Calendar/getInstance)]
-                 (doto calendar
-                   (.set java.util.Calendar/YEAR y)
-                   (.set java.util.Calendar/MONTH ({"jan" 0, "feb" 1, "mar" 2, "apr" 3
-                                                    "may" 4, "jun" 5, "jul" 6, "aug" 7
-                                                    "sep" 8, "oct" 9, "nov" 10, "dec" 11} m))
-                   (.set java.util.Calendar/DAY_OF_MONTH d))
-                 (new Date (.getTime calendar))))
-        calendar (new Calendar)
+(defn generate-calendar [data]
+  (let [calendar (new net.fortuna.ical4j.model.Calendar)
         uidg (new UidGenerator "1")]
     (doto (.getProperties calendar)
       (.add (new ProdId "-//Hugh Giddens//support-calendar//EN"))
@@ -103,80 +82,33 @@
       (.add CalScale/GREGORIAN))
     (doseq [[name [start end]] data]
       (let [start-date (let [[y m d] start
-                             calendar (java.util.Calendar/getInstance utc)]
+                             calendar (Calendar/getInstance utc)]
                          (doto calendar
-                           (.set java.util.Calendar/YEAR y)
-                           (.set java.util.Calendar/MONTH ({"jan" 0, "feb" 1, "mar" 2, "apr" 3
+                           (.set Calendar/YEAR y)
+                           (.set Calendar/MONTH ({"jan" 0, "feb" 1, "mar" 2, "apr" 3
                                                             "may" 4, "jun" 5, "jul" 6, "aug" 7
                                                             "sep" 8, "oct" 9, "nov" 10, "dec" 11} m))
-                           (.set java.util.Calendar/DAY_OF_MONTH d))
+                           (.set Calendar/DAY_OF_MONTH d))
                          (new Date (.getTime calendar)))
             end-date (let [[y m d] end
-                           calendar (java.util.Calendar/getInstance utc)]
+                           calendar (Calendar/getInstance utc)]
                        (doto calendar
-                         (.set java.util.Calendar/YEAR y)
-                         (.set java.util.Calendar/MONTH ({"jan" 0, "feb" 1, "mar" 2, "apr" 3
+                         (.set Calendar/YEAR y)
+                         (.set Calendar/MONTH ({"jan" 0, "feb" 1, "mar" 2, "apr" 3
                                                           "may" 4, "jun" 5, "jul" 6, "aug" 7
                                                           "sep" 8, "oct" 9, "nov" 10, "dec" 11} m))
-                         (.set java.util.Calendar/DAY_OF_MONTH d)
-                         (.add java.util.Calendar/DAY_OF_MONTH 1))
+                         (.set Calendar/DAY_OF_MONTH d)
+                         (.add Calendar/DAY_OF_MONTH 1))
                        (new Date (.getTime calendar)))
             event (new VEvent start-date end-date name)]
         (.add (.getProperties event) (.generateUid uidg))
         (.add (.getComponents calendar) event)))
-    (let [outputter (new CalendarOutputter true)]
-      (.output outputter calendar stream))))
+    calendar))
 
-(def roster-path "smb://flroa01/shared/general/intranet/shared-documents/support roster.xls")
+(defn render-calendar [workbook system]
+  (->> workbook
+       (roster-sheets)
+       (mapcat #(process-sheet % (find-column % system)))
+       (collapse-days)
+       (generate-calendar)))
 
-(defn render-calendar [system]
-  (let [data (->> @workbook
-                  (roster-sheets)
-                  (mapcat #(process-sheet % (find-column % system)))
-                  (collapse-days))
-        output (new ByteArrayOutputStream)]
-    (generate-calendar output data)
-    (new ByteArrayInputStream (.toByteArray output))))
-
-(def systems (sorted-set
-              "Internet"
-              "Jetbet/JESI"
-              "IP Terms"
-              "OFC"
-              "JEQI"
-              "Touchtone"
-              "IPC"
-              "Network"
-              "IS"
-              "DBA"))
-
-(compojure/defroutes routes
-  (compojure/GET "/systems/" request
-    (html/html
-     [:html
-      [:head [:title "Calendars"]]
-      [:body
-       [:ul (for [system systems]
-              [:li
-               [:a {:href (str "webcal://"
-                               (request :server-name) ":" (request :server-port)
-                               "/systems/" (codec/url-encode system))}
-                system]])]]]))
-  (compojure/GET "/systems/:system" [system]
-    (when (contains? systems system)
-      {:status 200
-       :headers {"Content-Type" "text/calendar"}
-       :body (render-calendar system)}))
-  (route/not-found "Calendar not found."))
-
-(defn start-server []
-  (let [get-workbook (fn [& old-workbook]
-                       (->> (new SmbFile roster-path)
-                            (.getInputStream)
-                            (new HSSFWorkbook)))
-        worksheet-updater (fn []
-                            (swap! workbook get-workbook))]
-    (worksheet-updater)
-    [(jetty/run-jetty #'routes {:port 8080 :join? false})
-     (doto (Executors/newSingleThreadScheduledExecutor)
-       (.scheduleAtFixedRate worksheet-updater 5 5 TimeUnit/SECONDS))]))

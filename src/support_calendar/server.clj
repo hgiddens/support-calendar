@@ -60,4 +60,4 @@
     (worksheet-updater)
     [(run-jetty #'calendar-routes {:port 8080 :join? false})
      (doto (Executors/newSingleThreadScheduledExecutor)
-       (.scheduleAtFixedRate worksheet-updater 5 5 TimeUnit/SECONDS))]))
+       (.scheduleAtFixedRate worksheet-updater 5 5 TimeUnit/MINUTES))]))

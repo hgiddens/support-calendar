@@ -64,3 +64,6 @@ Events are a vector of [name, system, date]."
                                       days
                                       (map inc-day days))))]
     (mapcat process-column (sheet-columns sheet))))
+
+(defn roster-events [workbook]
+  (mapcat sheet-events (roster-sheets workbook)))

@@ -9,23 +9,16 @@
        [hiccup :only [html]]
        [ring.adapter.jetty :only [run-jetty]]
        [ring.util.codec :only [url-encode]]
-       [support-calendar.core :only [render-calendar]]))
+       [support-calendar.events :only [collapse-date-ranges]]
+       [support-calendar.generator :only [generate-calendar]]
+       [support-calendar.xls-reader :only [roster-events]]))
 
 (def roster-path "smb://flroa01/shared/general/intranet/shared-documents/support roster.xls")
 
-(def systems (sorted-set
-              "Internet"
-              "Jetbet/JESI"
-              "IP Terms"
-              "OFC"
-              "JEQI"
-              "Touchtone"
-              "IPC"
-              "Network"
-              "IS"
-              "DBA"))
+(def events (atom []))
 
-(def workbook (atom nil))
+(defn systems [events]
+  (distinct (map second events)))
 
 (defroutes calendar-routes
   (GET "/systems/" request
@@ -33,31 +26,36 @@
      [:html
       [:head [:title "Calendars"]]
       [:body
-       [:ul (for [system systems]
+       [:ul (for [system (systems @events)]
               [:li
                [:a {:href (str "webcal://"
                                (request :server-name) ":" (request :server-port)
                                "/systems/" (url-encode system))}
                 system]])]]]))
   (GET "/systems/:system" [system]
-    (when (contains? systems system)
-      {:status 200
-       :headers {"Content-Type" "text/calendar"}
-       :body (let [calendar (render-calendar @workbook system)
-                   outputter (new CalendarOutputter true)
-                   stream (new ByteArrayOutputStream)]
-               (.output outputter calendar stream)
-               (new ByteArrayInputStream (.toByteArray stream)))}))
+    (let [ev @events]
+      (when (some (partial = system) (systems ev))
+        {:status 200
+         :headers {"Content-Type" "text/calendar"}
+         :body (let [calendar (generate-calendar (filter (fn [[name event-system start end]]
+                                                           (= event-system system))
+                                                         ev))
+                     outputter (new CalendarOutputter true)
+                     stream (new ByteArrayOutputStream)]
+                 (.output outputter calendar stream)
+                 (new ByteArrayInputStream (.toByteArray stream)))})))
   (not-found "Calendar not found."))
 
+(defn read-events [& old-events]
+  (collapse-date-ranges (roster-events (->> (new SmbFile roster-path)
+                                            (.getInputStream)
+                                            (new HSSFWorkbook)))))
+
+(defn update-events []
+  (swap! events read-events))
+
 (defn start-server []
-  (let [get-workbook (fn [& old-workbook]
-                       (->> (new SmbFile roster-path)
-                            (.getInputStream)
-                            (new HSSFWorkbook)))
-        worksheet-updater (fn []
-                            (swap! workbook get-workbook))]
-    (worksheet-updater)
-    [(run-jetty #'calendar-routes {:port 8080 :join? false})
-     (doto (Executors/newSingleThreadScheduledExecutor)
-       (.scheduleAtFixedRate worksheet-updater 5 5 TimeUnit/MINUTES))]))
+  (update-events)
+  [(run-jetty #'calendar-routes {:port 8080 :join? false})
+   (doto (Executors/newSingleThreadScheduledExecutor)
+     (.scheduleAtFixedRate update-events 5 5 TimeUnit/MINUTES))])

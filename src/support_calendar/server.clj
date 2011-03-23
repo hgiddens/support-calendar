@@ -24,6 +24,14 @@
   (distinct (map first events)))
 
 (defroutes calendar-routes
+  (GET "/all" []
+    {:status 200
+     :headers {"Content-Type" "text/calendar"}
+     :body (let [calendar (generate-calendar @events)
+                 outputter (new CalendarOutputter true)
+                 stream (new ByteArrayOutputStream)]
+             (.output outputter calendar stream)
+             (new ByteArrayInputStream (.toByteArray stream)))})
   (GET "/people/" request
     (html
      [:html

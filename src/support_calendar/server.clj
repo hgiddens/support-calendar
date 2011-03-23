@@ -24,6 +24,15 @@
   (distinct (map first events)))
 
 (defroutes calendar-routes
+  (GET "/" request
+       (html
+        [:html
+         [:head [:title "Calendars"]]
+         [:body
+          [:ul
+           [:li [:a {:href (str "webcal://" (request :server-name) ":" (request :server-port) "/all")} "All systems and people"]]
+           [:li [:a {:href "systems/"} "Calendars by system"]]
+           [:li [:a {:href "people/"} "Calendars by support person"]]]]]))
   (GET "/all" []
     {:status 200
      :headers {"Content-Type" "text/calendar"}

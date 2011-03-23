@@ -23,72 +23,56 @@
 (defn people [events]
   (distinct (map first events)))
 
+(defn webcal-url [request & paths]
+  (apply str "webcal://" (request :server-name) ":" (request :server-port) paths))
+
+(defn calendar-response [events]
+  {:status 200
+   :headers {"Content-Type" "text/calendar"}
+   :body (let [calendar (generate-calendar events)
+               outputter (new CalendarOutputter true)
+               stream (new ByteArrayOutputStream)]
+           (.output outputter calendar stream)
+           (new ByteArrayInputStream (.toByteArray stream)))})
+
 (defroutes calendar-routes
   (GET "/" request
-       (html
-        [:html
-         [:head [:title "Calendars"]]
-         [:body
-          [:ul
-           [:li [:a {:href (str "webcal://" (request :server-name) ":" (request :server-port) "/all")} "All systems and people"]]
-           [:li [:a {:href "systems/"} "Calendars by system"]]
-           [:li [:a {:href "people/"} "Calendars by support person"]]]]]))
+    (html
+     [:html
+      [:head [:title "Calendars"]]
+      [:body
+       [:ul
+        [:li [:a {:href (webcal-url request "/all")} "All systems and people"]]
+        [:li [:a {:href "systems/"} "Calendars by system"]]
+        [:li [:a {:href "people/"} "Calendars by support person"]]]]]))
   (GET "/all" []
-    {:status 200
-     :headers {"Content-Type" "text/calendar"}
-     :body (let [calendar (generate-calendar @events)
-                 outputter (new CalendarOutputter true)
-                 stream (new ByteArrayOutputStream)]
-             (.output outputter calendar stream)
-             (new ByteArrayInputStream (.toByteArray stream)))})
+    (calendar-response @events))
   (GET "/people/" request
     (html
      [:html
       [:head [:title "Calendars by person"]]
       [:body
        [:ul (for [person (sort (people @events))]
-              [:li
-               [:a {:href (str "webcal://"
-                               (request :server-name)
-                               ":"
-                               (request :server-port)
-                               "/people/" (url-encode person))}
-                person]])]]]))
+              [:li [:a {:href (webcal-url request "/people/" (url-encode person))} person]])]]]))
   (GET "/people/:person" [person]
     (let [ev @events]
       (when (some (partial = person) (people ev))
-        {:status 200
-         :headers {"Content-Type" "text/calendar"}
-         :body (let [calendar (generate-calendar (filter (fn [[name event-system start end]]
-                                                           (= name person))
-                                                         ev))
-                     outputter (new CalendarOutputter true)
-                     stream (new ByteArrayOutputStream)]
-                 (.output outputter calendar stream)
-                 (new ByteArrayInputStream (.toByteArray stream)))})))
+        (calendar-response (filter (fn [[name event-system start end]]
+                                     (= name person))
+                                   ev)))))
   (GET "/systems/" request
     (html
      [:html
       [:head [:title "Calendars by system"]]
       [:body
        [:ul (for [system (sort (systems @events))]
-              [:li
-               [:a {:href (str "webcal://"
-                               (request :server-name) ":" (request :server-port)
-                               "/systems/" (url-encode system))}
-                system]])]]]))
+              [:li [:a {:href (webcal-url request "/systems/" (url-encode system))} system]])]]]))
   (GET "/systems/:system" [system]
     (let [ev @events]
       (when (some (partial = system) (systems ev))
-        {:status 200
-         :headers {"Content-Type" "text/calendar"}
-         :body (let [calendar (generate-calendar (filter (fn [[name event-system start end]]
-                                                           (= event-system system))
-                                                         ev))
-                     outputter (new CalendarOutputter true)
-                     stream (new ByteArrayOutputStream)]
-                 (.output outputter calendar stream)
-                 (new ByteArrayInputStream (.toByteArray stream)))})))
+        (calendar-response (filter (fn [[name event-system start end]]
+                                     (= event-system system))
+                                   ev)))))
   (not-found "Calendar not found."))
 
 (defn read-events [& old-events]

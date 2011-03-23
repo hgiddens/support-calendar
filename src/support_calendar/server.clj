@@ -9,55 +9,81 @@
        [hiccup :only [html]]
        [ring.adapter.jetty :only [run-jetty]]
        [ring.util.codec :only [url-encode]]
-       [support-calendar.core :only [render-calendar]]))
+       [support-calendar.events :only [collapse-date-ranges]]
+       [support-calendar.generator :only [generate-calendar]]
+       [support-calendar.xls-reader :only [roster-events]]))
 
 (def roster-path "smb://flroa01/shared/general/intranet/shared-documents/support roster.xls")
 
-(def systems (sorted-set
-              "Internet"
-              "Jetbet/JESI"
-              "IP Terms"
-              "OFC"
-              "JEQI"
-              "Touchtone"
-              "IPC"
-              "Network"
-              "IS"
-              "DBA"))
+(defonce events (atom []))
 
-(def workbook (atom nil))
+(defn systems [events]
+  (distinct (map second events)))
+
+(defn people [events]
+  (distinct (map first events)))
+
+(defn webcal-url [request & paths]
+  (apply str "webcal://" (request :server-name) ":" (request :server-port) paths))
+
+(defn calendar-response [events]
+  {:status 200
+   :headers {"Content-Type" "text/calendar"}
+   :body (let [calendar (generate-calendar events)
+               outputter (new CalendarOutputter true)
+               stream (new ByteArrayOutputStream)]
+           (.output outputter calendar stream)
+           (new ByteArrayInputStream (.toByteArray stream)))})
+
+(defn link-page [title links]
+  (html
+   [:html
+    [:head [:title title]]
+    [:body
+     [:ul
+      (for [[link-title link-url] links]
+        [:li [:a {:href link-url} link-title]])]]]))
 
 (defroutes calendar-routes
+  (GET "/" request
+    (link-page "Calendars"
+      [["All systems and people" (webcal-url request "/all")]
+       ["Calendars by system" "systems/"]
+       ["Calendars by support person" "people/"]]))
+  (GET "/all" []
+    (calendar-response @events))
+  (GET "/people/" request
+    (link-page "Calendars by support person"
+      (for [person (sort (people @events))]
+        [person (webcal-url request "/people/" (url-encode person))])))
+  (GET "/people/:person" [person]
+    (let [ev @events]
+      (when (some (partial = person) (people ev))
+        (calendar-response (filter (fn [[name event-system start end]]
+                                     (= name person))
+                                   ev)))))
   (GET "/systems/" request
-    (html
-     [:html
-      [:head [:title "Calendars"]]
-      [:body
-       [:ul (for [system systems]
-              [:li
-               [:a {:href (str "webcal://"
-                               (request :server-name) ":" (request :server-port)
-                               "/systems/" (url-encode system))}
-                system]])]]]))
+    (link-page "Calendars by system"
+      (for [system (sort (systems @events))]
+        [system (webcal-url request "/systems/" (url-encode system))])))
   (GET "/systems/:system" [system]
-    (when (contains? systems system)
-      {:status 200
-       :headers {"Content-Type" "text/calendar"}
-       :body (let [calendar (render-calendar @workbook system)
-                   outputter (new CalendarOutputter true)
-                   stream (new ByteArrayOutputStream)]
-               (.output outputter calendar stream)
-               (new ByteArrayInputStream (.toByteArray stream)))}))
+    (let [ev @events]
+      (when (some (partial = system) (systems ev))
+        (calendar-response (filter (fn [[name event-system start end]]
+                                     (= event-system system))
+                                   ev)))))
   (not-found "Calendar not found."))
 
+(defn read-events [& old-events]
+  (collapse-date-ranges (roster-events (->> (new SmbFile roster-path)
+                                            (.getInputStream)
+                                            (new HSSFWorkbook)))))
+
+(defn update-events []
+  (swap! events read-events))
+
 (defn start-server []
-  (let [get-workbook (fn [& old-workbook]
-                       (->> (new SmbFile roster-path)
-                            (.getInputStream)
-                            (new HSSFWorkbook)))
-        worksheet-updater (fn []
-                            (swap! workbook get-workbook))]
-    (worksheet-updater)
-    [(run-jetty #'calendar-routes {:port 8080 :join? false})
-     (doto (Executors/newSingleThreadScheduledExecutor)
-       (.scheduleAtFixedRate worksheet-updater 5 5 TimeUnit/MINUTES))]))
+  (update-events)
+  [(run-jetty #'calendar-routes {:port 8080 :join? false})
+   (doto (Executors/newSingleThreadScheduledExecutor)
+     (.scheduleAtFixedRate update-events 5 5 TimeUnit/MINUTES))])

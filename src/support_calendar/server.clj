@@ -35,25 +35,27 @@
            (.output outputter calendar stream)
            (new ByteArrayInputStream (.toByteArray stream)))})
 
+(defn link-page [title links]
+  (html
+   [:html
+    [:head [:title title]]
+    [:body
+     [:ul
+      (for [[link-title link-url] links]
+        [:li [:a {:href link-url} link-title]])]]]))
+
 (defroutes calendar-routes
   (GET "/" request
-    (html
-     [:html
-      [:head [:title "Calendars"]]
-      [:body
-       [:ul
-        [:li [:a {:href (webcal-url request "/all")} "All systems and people"]]
-        [:li [:a {:href "systems/"} "Calendars by system"]]
-        [:li [:a {:href "people/"} "Calendars by support person"]]]]]))
+    (link-page "Calendars"
+      [["All systems and people" (webcal-url request "/all")]
+       ["Calendars by system" "systems/"]
+       ["Calendars by support person" "people/"]]))
   (GET "/all" []
     (calendar-response @events))
   (GET "/people/" request
-    (html
-     [:html
-      [:head [:title "Calendars by person"]]
-      [:body
-       [:ul (for [person (sort (people @events))]
-              [:li [:a {:href (webcal-url request "/people/" (url-encode person))} person]])]]]))
+    (link-page "Calendars by support person"
+      (for [person (sort (people @events))]
+        [person (webcal-url request "/people/" (url-encode person))])))
   (GET "/people/:person" [person]
     (let [ev @events]
       (when (some (partial = person) (people ev))
@@ -61,12 +63,9 @@
                                      (= name person))
                                    ev)))))
   (GET "/systems/" request
-    (html
-     [:html
-      [:head [:title "Calendars by system"]]
-      [:body
-       [:ul (for [system (sort (systems @events))]
-              [:li [:a {:href (webcal-url request "/systems/" (url-encode system))} system]])]]]))
+    (link-page "Calendars by system"
+      (for [system (sort (systems @events))]
+        [system (webcal-url request "/systems/" (url-encode system))])))
   (GET "/systems/:system" [system]
     (let [ev @events]
       (when (some (partial = system) (systems ev))

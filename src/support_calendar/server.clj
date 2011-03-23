@@ -15,7 +15,7 @@
 
 (def roster-path "smb://flroa01/shared/general/intranet/shared-documents/support roster.xls")
 
-(def events (atom []))
+(defonce events (atom []))
 
 (defn systems [events]
   (distinct (map second events)))

@@ -20,13 +20,41 @@
 (defn systems [events]
   (distinct (map second events)))
 
+(defn people [events]
+  (distinct (map first events)))
+
 (defroutes calendar-routes
+  (GET "/people/" request
+    (html
+     [:html
+      [:head [:title "Calendars by person"]]
+      [:body
+       [:ul (for [person (sort (people @events))]
+              [:li
+               [:a {:href (str "webcal://"
+                               (request :server-name)
+                               ":"
+                               (request :server-port)
+                               "/people/" (url-encode person))}
+                person]])]]]))
+  (GET "/people/:person" [person]
+    (let [ev @events]
+      (when (some (partial = person) (people ev))
+        {:status 200
+         :headers {"Content-Type" "text/calendar"}
+         :body (let [calendar (generate-calendar (filter (fn [[name event-system start end]]
+                                                           (= name person))
+                                                         ev))
+                     outputter (new CalendarOutputter true)
+                     stream (new ByteArrayOutputStream)]
+                 (.output outputter calendar stream)
+                 (new ByteArrayInputStream (.toByteArray stream)))})))
   (GET "/systems/" request
     (html
      [:html
-      [:head [:title "Calendars"]]
+      [:head [:title "Calendars by system"]]
       [:body
-       [:ul (for [system (systems @events)]
+       [:ul (for [system (sort (systems @events))]
               [:li
                [:a {:href (str "webcal://"
                                (request :server-name) ":" (request :server-port)

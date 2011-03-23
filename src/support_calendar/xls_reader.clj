@@ -42,6 +42,10 @@
 (defn valid-event? [[name system date]]
   (not (string/blank? name)))
 
+(defn inc-day [day]
+  (doto (.clone day)
+    (.add Calendar/DAY_OF_MONTH 1)))
+
 (defn roster-sheets [workbook]
   "Returns a seq of the worksheets in workbook that have roster information."
   (filter roster-sheet? (workbook-sheets workbook)))
@@ -57,5 +61,6 @@ Events are a vector of [name, system, date]."
                                  (map vector
                                       (system-cells sheet column-index)
                                       (repeat system)
-                                      days)))]
+                                      days
+                                      (map inc-day days))))]
     (mapcat process-column (sheet-columns sheet))))

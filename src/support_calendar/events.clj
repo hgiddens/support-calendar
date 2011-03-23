@@ -1,13 +1,6 @@
-(ns support-calendar.events
-  (import [java.util Calendar]))
-
-(defn split-date [[name system start-date]]
-  (let [end-date (doto (.clone start-date)
-                   (.add Calendar/DAY_OF_MONTH 1))]
-    [name system start-date end-date]))
+(ns support-calendar.events)
 
 (defn merge-events [[last-event & rest :as all] event]
-  (assert (= (count event) 4))
   (let [start-date #(nth % 2)
         end-date #(nth % 3)
         merge-into (fn [target updater]

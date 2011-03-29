@@ -1,8 +1,8 @@
 (ns support-calendar.xls-reader
   (import [java.text SimpleDateFormat]
-          [java.util Calendar TimeZone]
-          [org.apache.poi.ss.usermodel Cell])
-  (require [clojure.string :as string]))
+          [java.util Calendar TimeZone])
+  (require [clojure.string :as string]
+           [support-calendar.sheets :as sheets]))
 
 (def roster-sheet-name-pattern #"(?i)jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec\d{2}")
 
@@ -14,30 +14,28 @@
 (defn range-from [n]
   (drop n (range)))
 
-(defn sheet-columns [sheet]
-  (for [column-index (range-from 2)
-        :let [value (-> sheet (.getRow 1) (.getCell column-index) (.getStringCellValue))]
+(defn take-range [seq s e]
+  (take (- e s) (drop s seq)))
+
+(defn sheet-systems [sheet]
+  (for [column (drop 2 (sheets/columns sheet))
+        :let [value (sheets/cell-value (second column))]
         :while (not= value "Date")
         :when (not (string/blank? value))]
-    [value column-index]))
+    [value column]))
 
 (defn sheet-days [sheet]
   (let [sheet-date (doto (Calendar/getInstance utc)
-                     (.setTime (.parse roster-date-format (.getSheetName sheet))))]
+                     (.setTime (.parse roster-date-format (sheets/sheet-name sheet))))]
     (for [day-index (range (.getActualMaximum sheet-date Calendar/DAY_OF_MONTH))]
       (doto (.clone sheet-date)
         (.set Calendar/DAY_OF_MONTH (inc day-index))))))
 
-(defn system-cells [sheet column-index]
-  (for [row-index (range 2 33)]
-    (-> sheet (.getRow row-index) (.getCell column-index) (.getStringCellValue))))
-
-(defn workbook-sheets [workbook]
-  (for [index (range (.getNumberOfSheets workbook))]
-    (.getSheetAt workbook index)))
+(defn system-cells [column]
+  (map sheets/cell-value (take-range column 2 33)))
 
 (defn roster-sheet? [sheet]
-  (re-find roster-sheet-name-pattern (.getSheetName sheet)))
+  (re-find roster-sheet-name-pattern (sheets/sheet-name sheet)))
 
 (defn valid-event? [[name system date]]
   (not (string/blank? name)))
@@ -48,7 +46,7 @@
 
 (defn roster-sheets [workbook]
   "Returns a seq of the worksheets in workbook that have roster information."
-  (filter roster-sheet? (workbook-sheets workbook)))
+  (filter roster-sheet? (sheets/sheets workbook)))
 
 (defn sheet-events
   "Returns a seq of the events in a worksheet.
@@ -56,14 +54,14 @@
 Events are a vector of [name, system, date]."
   [sheet]
   (let [days (sheet-days sheet)
-        process-column (fn [[system column-index]]
+        process-column (fn [[system column]]
                          (filter valid-event?
                                  (map vector
-                                      (system-cells sheet column-index)
+                                      (system-cells column)
                                       (repeat system)
                                       days
                                       (map inc-day days))))]
-    (mapcat process-column (sheet-columns sheet))))
+    (mapcat process-column (sheet-systems sheet))))
 
 (defn roster-events [workbook]
   (mapcat sheet-events (roster-sheets workbook)))

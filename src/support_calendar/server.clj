@@ -2,8 +2,9 @@
   (import [java.io ByteArrayInputStream ByteArrayOutputStream]
           [java.util.concurrent Executors TimeUnit]
           [jcifs.smb SmbFile]
-          [net.fortuna.ical4j.data CalendarOutputter]
-          [org.apache.poi.hssf.usermodel HSSFWorkbook])
+          [net.fortuna.ical4j.data CalendarOutputter])
+  (require [clojure.java.io :as io]
+           [support-calendar.sheets :as sheets])
   (use compojure.core
        compojure.route
        [hiccup :only [html]]
@@ -12,6 +13,11 @@
        [support-calendar.events :only [collapse-date-ranges]]
        [support-calendar.generator :only [generate-calendar]]
        [support-calendar.xls-reader :only [roster-events]]))
+
+(extend SmbFile io/IOFactory
+  (assoc io/default-streams-impl
+    :make-input-stream (fn [x opts] (.getInputStream x))
+    :make-output-stream (fn [x opts] (.getOutputStream x))))
 
 (def roster-path "smb://flroa01/shared/general/intranet/shared-documents/support roster.xls")
 
@@ -75,9 +81,7 @@
   (not-found "Calendar not found."))
 
 (defn read-events [& old-events]
-  (collapse-date-ranges (roster-events (->> (new SmbFile roster-path)
-                                            (.getInputStream)
-                                            (new HSSFWorkbook)))))
+  (-> (new SmbFile roster-path) (sheets/workbook) (roster-events) (collapse-date-ranges)))
 
 (defn update-events []
   (swap! events read-events))

@@ -7,7 +7,7 @@
            [support-calendar.sheets :as sheets])
   (use compojure.core
        compojure.route
-       [hiccup :only [html]]
+       [hiccup.core :only [html]]
        [ring.adapter.jetty :only [run-jetty]]
        [ring.util.codec :only [url-encode]]
        [support-calendar.events :only [collapse-date-ranges]]

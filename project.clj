@@ -4,8 +4,9 @@
                  [org.clojure/clojure-contrib "1.2.0"]
                  [org.samba.jcifs/jcifs "1.2.19"]
                  [org.apache.poi/poi "3.7"]
-                 [ical4j "0.9.20"]
+                 [net.fortuna.ical4j/ical4j "1.0"]
                  [compojure "0.6.2"]
                  [ring/ring-jetty-adapter "0.3.7"]
                  [hiccup "0.3.4"]]
-  :dev-dependencies [[swank-clojure "1.2.1"]])
+  :dev-dependencies [[swank-clojure "1.2.1"]]
+  :repositories {"modularity" {:url "http://m2.modularity.net.au/releases", :snapshots false}})

@@ -27,3 +27,5 @@
   (.getStringCellValue cell))
 (defmethod cell-value Cell/CELL_TYPE_BLANK [cell]
   nil)
+(defmethod cell-value Cell/CELL_TYPE_NUMERIC [cell]
+  (.getNumericCellValue cell))

@@ -1,7 +1,7 @@
 (ns support-calendar.generator
   (import [net.fortuna.ical4j.model Calendar Date]
           [net.fortuna.ical4j.model.component VEvent]
-          [net.fortuna.ical4j.model.property CalScale Comment ProdId Version]
+          [net.fortuna.ical4j.model.property CalScale Description ProdId Version]
           [net.fortuna.ical4j.util UidGenerator])
   (use [clojure.string :only [join]]))
 
@@ -19,10 +19,10 @@
       (let [event (new VEvent (to-date start) (to-date end) (str system " support: " (details :name)))]
         (doto (.getProperties event)
           (.add (.generateUid generator))
-          (.add (new Comment (with-out-str
-                               (when-let [extension (details :extension)]
-                                 (println "Extension:" extension))
-                               (when-let [phones (details :phone)]
-                                 (println "Phone:" (join ", " phones)))))))
+          (.add (new Description (with-out-str
+                                   (when-let [extension (details :extension)]
+                                     (println "Extension:" extension))
+                                   (when-let [phones (details :phone)]
+                                     (println "Phone:" (join ", " phones)))))))
         (.add (.getComponents calendar) event)))
     calendar))

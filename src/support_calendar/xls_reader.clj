@@ -37,8 +37,8 @@
 (defn roster-sheet? [sheet]
   (re-find roster-sheet-name-pattern (sheets/sheet-name sheet)))
 
-(defn valid-event? [[name system date]]
-  (not (string/blank? name)))
+(defn valid-event? [[details system start end]]
+  (not (string/blank? (details :name))))
 
 (defn inc-day [day]
   (doto (.clone day)
@@ -47,24 +47,6 @@
 (defn roster-sheets [workbook]
   "Returns a seq of the worksheets in workbook that have roster information."
   (filter roster-sheet? (sheets/sheets workbook)))
-
-(defn sheet-events
-  "Returns a seq of the events in a worksheet.
-
-Events are a vector of [name, system, date]."
-  [sheet]
-  (let [days (sheet-days sheet)
-        process-column (fn [[system column]]
-                         (filter valid-event?
-                                 (map vector
-                                      (system-cells column)
-                                      (repeat system)
-                                      days
-                                      (map inc-day days))))]
-    (mapcat process-column (sheet-systems sheet))))
-
-(defn roster-events [workbook]
-  (mapcat sheet-events (roster-sheets workbook)))
 
 (defn extract-people [sheet]
   (let [person-details-things [{:name 0
@@ -101,4 +83,26 @@ Events are a vector of [name, system, date]."
                    details person-details-things
                    :let [person (make-person row details)]
                    :when (valid-person? person)]
-               [(person :initials) (dissoc person :initials)]))))
+               [(person :initials) person]))))
+
+(defn sheet-events
+  "Returns a seq of the events in a worksheet.
+
+Events are a vector of [name, system, date]."
+  [sheet]
+  (let [days (sheet-days sheet)
+        name-map (extract-people sheet)
+        expand-name (fn [initials]
+                      (or (name-map initials) {:name initials, :initials initials}))
+        process-column (fn [[system column]]
+                         (filter valid-event?
+                                 (map vector
+                                      (map expand-name (system-cells column))
+                                      (repeat system)
+                                      days
+                                      (map inc-day days))))]
+    (mapcat process-column (sheet-systems sheet))))
+
+(defn roster-events [workbook]
+  (mapcat sheet-events (roster-sheets workbook)))
+

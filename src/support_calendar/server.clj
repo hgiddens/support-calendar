@@ -27,7 +27,7 @@
   (distinct (map second events)))
 
 (defn people [events]
-  (distinct (map first events)))
+  (distinct (map (comp :initials first) events)))
 
 (defn webcal-url [request & paths]
   (apply str "webcal://" (request :server-name) ":" (request :server-port) paths))
@@ -66,7 +66,7 @@
     (let [ev @events]
       (when (some (partial = person) (people ev))
         (calendar-response (filter (fn [[name event-system start end]]
-                                     (= name person))
+                                     (= (:initials name) person))
                                    ev)))))
   (GET "/systems/" request
     (link-page "Calendars by system"

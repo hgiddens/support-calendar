@@ -97,8 +97,8 @@ Events are a vector of [name, system, date]."
                                  (string/blank? (:initials person))
                                  (string/blank? (:extension person))
                                  (every? string/blank? (:phone person)))))]
-    (for [row rows
-          details person-details-things
-          :let [person (make-person row details)]
-          :when (valid-person? person)]
-      person)))
+    (into {} (for [row rows
+                   details person-details-things
+                   :let [person (make-person row details)]
+                   :when (valid-person? person)]
+               [(person :initials) (dissoc person :initials)]))))

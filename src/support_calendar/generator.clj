@@ -15,14 +15,14 @@
       (.add (new ProdId "-//NZRB//support-calendar//EN"))
       (.add Version/VERSION_2_0)
       (.add CalScale/GREGORIAN))
-    (doseq [[details system start end] events]
-      (let [event (new VEvent (to-date start) (to-date end) (str system " support: " (details :name)))]
+    (doseq [{:keys [person system start end]} events]
+      (let [event (new VEvent (to-date start) (to-date end) (str system " support: " (:name person)))]
         (doto (.getProperties event)
           (.add (.generateUid generator))
           (.add (new Description (with-out-str
-                                   (when-let [extension (details :extension)]
+                                   (when-let [extension (:extension person)]
                                      (println "Extension:" extension))
-                                   (when-let [phones (details :phone)]
+                                   (when-let [phones (:phone person)]
                                      (println "Phone:" (join ", " phones)))))))
         (.add (.getComponents calendar) event)))
     calendar))

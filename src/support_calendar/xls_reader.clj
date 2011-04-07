@@ -37,8 +37,8 @@
 (defn roster-sheet? [sheet]
   (re-find roster-sheet-name-pattern (sheets/sheet-name sheet)))
 
-(defn valid-event? [[details system start end]]
-  (not (string/blank? (details :name))))
+(defn valid-event? [event]
+  (not (string/blank? (:name (:person event)))))
 
 (defn inc-day [day]
   (doto (.clone day)
@@ -96,11 +96,13 @@ Events are a vector of [name, system, date]."
                       (or (name-map initials) {:name initials, :initials initials}))
         process-column (fn [[system column]]
                          (filter valid-event?
-                                 (map vector
-                                      (map expand-name (system-cells column))
-                                      (repeat system)
-                                      days
-                                      (map inc-day days))))]
+                                 (map (fn [initials day]
+                                        {:person (expand-name initials)
+                                         :system system
+                                         :start day
+                                         :end (inc-day day)})
+                                      (system-cells column)
+                                      days)))]
     (mapcat process-column (sheet-systems sheet))))
 
 (defn roster-events [workbook]

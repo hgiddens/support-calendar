@@ -63,18 +63,18 @@
       (for [person (sort (people @events))]
         [person (webcal-url request "/people/" (url-encode person))])))
   (GET "/people/:person" [person]
-    (let [ev @events]
-      (when (some (partial = person) (people ev))
-        (calendar-response (for [event ev :when (= (:initials (:person event)) person)]
+    (let [events @events]
+      (when (some (partial = person) (people events))
+        (calendar-response (for [event events :when (= (:initials (:person event)) person)]
                              event)))))
   (GET "/systems/" request
     (link-page "Calendars by system"
       (for [system (sort (systems @events))]
         [system (webcal-url request "/systems/" (url-encode system))])))
   (GET "/systems/:system" [system]
-    (let [ev @events]
-      (when (some (partial = system) (systems ev))
-        (calendar-response (for [event ev :when (= (:system event) system)]
+    (let [events @events]
+      (when (some (partial = system) (systems events))
+        (calendar-response (for [event events :when (= (:system event) system)]
                              event)))))
   (not-found "Calendar not found."))
 

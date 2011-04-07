@@ -12,6 +12,9 @@
   (for [index (range (.getNumberOfSheets workbook))]
     (.getSheetAt workbook index)))
 
+(defn rows [sheet]
+  (seq sheet))
+
 (defn sheet-name [sheet]
   (.getSheetName sheet))
 
@@ -27,3 +30,5 @@
   (.getStringCellValue cell))
 (defmethod cell-value Cell/CELL_TYPE_BLANK [cell]
   nil)
+(defmethod cell-value Cell/CELL_TYPE_NUMERIC [cell]
+  (.getNumericCellValue cell))

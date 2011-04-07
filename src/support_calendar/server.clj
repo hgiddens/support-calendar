@@ -24,10 +24,10 @@
 (defonce events (atom []))
 
 (defn systems [events]
-  (distinct (map second events)))
+  (distinct (map :system events)))
 
 (defn people [events]
-  (distinct (map first events)))
+  (distinct (map (comp :initials :person) events)))
 
 (defn webcal-url [request & paths]
   (apply str "webcal://" (request :server-name) ":" (request :server-port) paths))
@@ -63,21 +63,19 @@
       (for [person (sort (people @events))]
         [person (webcal-url request "/people/" (url-encode person))])))
   (GET "/people/:person" [person]
-    (let [ev @events]
-      (when (some (partial = person) (people ev))
-        (calendar-response (filter (fn [[name event-system start end]]
-                                     (= name person))
-                                   ev)))))
+    (let [events @events]
+      (when (some (partial = person) (people events))
+        (calendar-response (for [event events :when (= (:initials (:person event)) person)]
+                             event)))))
   (GET "/systems/" request
     (link-page "Calendars by system"
       (for [system (sort (systems @events))]
         [system (webcal-url request "/systems/" (url-encode system))])))
   (GET "/systems/:system" [system]
-    (let [ev @events]
-      (when (some (partial = system) (systems ev))
-        (calendar-response (filter (fn [[name event-system start end]]
-                                     (= event-system system))
-                                   ev)))))
+    (let [events @events]
+      (when (some (partial = system) (systems events))
+        (calendar-response (for [event events :when (= (:system event) system)]
+                             event)))))
   (not-found "Calendar not found."))
 
 (defn read-events [& old-events]

@@ -12,6 +12,9 @@
   (for [index (range (.getNumberOfSheets workbook))]
     (.getSheetAt workbook index)))
 
+(defn rows [sheet]
+  (seq sheet))
+
 (defn sheet-name [sheet]
   (.getSheetName sheet))
 

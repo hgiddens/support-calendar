@@ -48,42 +48,44 @@
   "Returns a seq of the worksheets in workbook that have roster information."
   (filter roster-sheet? (sheets/sheets workbook)))
 
+(defn valid-contact-details? [person]
+  (not (or (string/blank? (:name person))
+           (string/blank? (:initials person))
+           (string/blank? (:extension person))
+           (every? string/blank? (:phone person)))))
+
 (defn extract-people [sheet]
-  (let [person-details-things [{:name 0
-                                :initials 2
-                                :extension 3
-                                :phone [4 5]}
-                               {:name 7
-                                :initials 8
-                                :extension 9
-                                :phone [10 11]}
-                               {:name 13
-                                :initials 14
-                                :extension 15
-                                :phone [16 17]}]
-        rows (drop 34 sheet)
+  (let [contact-details-layout [{:name 0
+                                 :initials 2
+                                 :extension 3
+                                 :phone [4 5]}
+                                {:name 7
+                                 :initials 8
+                                 :extension 9
+                                 :phone [10 11]}
+                                {:name 13
+                                 :initials 14
+                                 :extension 15
+                                 :phone [16 17]}]
         get-val (fn [row index]
-                  (let [v (if-let [cell (.getCell row index)] (sheets/cell-value cell) "")]
+                  (let [defaulted-value (if-let [cell (.getCell row index)]
+                                          (sheets/cell-value cell)
+                                          "")]
                     (cond
-                     (number? v) (Integer/toString v)
-                     (string? v) (string/trim v)
-                     :otherwise v)))
+                     (number? defaulted-value) (Integer/toString defaulted-value)
+                     (string? defaulted-value) (string/trim defaulted-value)
+                     :otherwise defaulted-value)))
         make-person (fn [row details]
-                      (into {} (map (fn [[k v]]
-                                      [k (if (coll? v)
-                                           (filter (complement string/blank?) (map (partial get-val row) v))
-                                           (get-val row v))])
-                                    details)))
-        valid-person? (fn [person]
-                        (not (or (string/blank? (:name person))
-                                 (string/blank? (:initials person))
-                                 (string/blank? (:extension person))
-                                 (every? string/blank? (:phone person)))))]
-    (into {} (for [row rows
-                   details person-details-things
+                      (into {} (map (fn [[property index]]
+                                      [property (if (coll? index)
+                                                  (filter (complement string/blank?) (map (partial get-val row) index))
+                                                  (get-val row index))])
+                                    details)))]
+    (into {} (for [row (drop 34 (sheets/rows sheet))
+                   details contact-details-layout
                    :let [person (make-person row details)]
-                   :when (valid-person? person)]
-               [(person :initials) person]))))
+                   :when (valid-contact-details? person)]
+               [(:initials person) person]))))
 
 (defn sheet-events
   "Returns a seq of the events in a worksheet.

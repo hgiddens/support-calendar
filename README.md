@@ -1,14 +1,26 @@
 # support-calendar
 
-FIXME: write description
+Generates iCalendar files from the NZRB support roster.
 
 ## Usage
 
-FIXME: write
+Running the server is as simple as executing the jar file:
 
-## Installation
+    % java -jar support-calendar.jar
 
-FIXME: write
+If accessing the support roster requires authentication, then specify
+appropriate values for the `jcifs.smb.client.domain`,
+`jcifs.smb.client.username`, and `jcifs.smb.client.password` system
+properties.
+
+## How to build
+
+Use [Leiningen](http://github.com/technomancy/leiningen) to build the jar file:
+
+    % lein uberjar
+
+The above command will create two `.jar` files. The “standalone” jar is the
+one that should be deployed.
 
 ## License
 

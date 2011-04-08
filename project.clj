@@ -1,4 +1,4 @@
-(defproject support-calendar "1"
+(defproject support-calendar "1.0.0"
   :description "Generates iCalendar files from the support roster"
   :dependencies [[org.clojure/clojure "1.2.0"]
                  [org.clojure/clojure-contrib "1.2.0"]

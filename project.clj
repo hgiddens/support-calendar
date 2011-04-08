@@ -9,4 +9,5 @@
                  [ring/ring-jetty-adapter "0.3.7"]
                  [hiccup "0.3.4"]]
   :dev-dependencies [[swank-clojure "1.2.1"]]
+  :main support-calendar.run
   :repositories {"modularity" {:url "http://m2.modularity.net.au/releases", :snapshots false}})
